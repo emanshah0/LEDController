@@ -14,14 +14,6 @@ struct ShootingStar {
   bool isAnimating;
 };
 
-// Enumeration to represent the state of a Particle Shot
-enum class ParticleShotState {
-  FADING_IN,
-  SHOWING,
-  FADING_OUT,
-  OFF
-};
-
 // Structure to represent a Particle Shot
 struct ParticleShot {
   uint16_t startLED;
@@ -30,8 +22,6 @@ struct ParticleShot {
   uint32_t color;
   int16_t direction;
   uint16_t updateInterval;
-  uint8_t brightness;
-  ParticleShotState state;
   unsigned long lastUpdate;
   bool isAnimating;
 };
@@ -48,7 +38,7 @@ public:
   LEDController(uint16_t numLeds, uint8_t pin, neoPixelType type);
   void begin();
   void startShootingStar(uint16_t startLED, uint16_t endLED, uint8_t rgb[], uint8_t maxBrightness, uint8_t fadeSteps);
-  void startParticleShot(uint16_t startLED, uint16_t endLED, uint8_t rgb[], uint16_t updateInterval, uint8_t fadeAmount);
+  void startParticleShot(uint16_t startLED, uint16_t endLED, uint8_t rgb[], uint16_t updateInterval);
   void update();
   bool isLEDAnimating();
   void lightUp(uint16_t startLED, uint16_t endLED, uint8_t grb[]);
