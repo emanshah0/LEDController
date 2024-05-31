@@ -1,17 +1,20 @@
 #include "LEDController.h"
 
+// Constructor for the LEDController class
 LEDController::LEDController(uint16_t numLeds, uint8_t pin, neoPixelType type)
   : strip(numLeds, pin, type), numLeds(numLeds), lastTwinkleUpdate(0), twinkleMaxBrightness(0), twinkleUpdateInterval(0), twinkleFadeAmount(0), twinkleChance(500) {
   brightness.resize(numLeds, 0);
   twinkleState.resize(numLeds, TwinkleState::OFF);
 }
 
+// Initialize the LED strip
 void LEDController::begin() {
   strip.begin();
   strip.clear();
   strip.show();
 }
 
+// Start a new shooting star animation
 void LEDController::startShootingStar(uint16_t startLED, uint16_t endLED, uint8_t rgb[], uint8_t maxBrightness, uint8_t fadeSteps) {
   ShootingStar newStar;
   newStar.startLED = startLED;
@@ -23,6 +26,21 @@ void LEDController::startShootingStar(uint16_t startLED, uint16_t endLED, uint8_
   shootingStars.push_back(newStar);
 }
 
+// Start a new particle shot animation
+void LEDController::startParticleShot(uint16_t startLED, uint16_t endLED, uint8_t rgb[], uint16_t updateInterval) {
+  ParticleShot newShot;
+  newShot.startLED = startLED;
+  newShot.endLED = endLED;
+  newShot.currentLED = startLED;
+  newShot.color = strip.Color(rgb[0], rgb[1], rgb[2]);
+  newShot.direction = (endLED > startLED) ? 1 : -1;
+  newShot.updateInterval = updateInterval;
+  newShot.lastUpdate = millis();
+  newShot.isAnimating = true;
+  particleShots.push_back(newShot);
+}
+
+// Light up a range of LEDs with a given color
 void LEDController::lightUp(uint16_t startLED, uint16_t endLED, uint8_t grb[]) {
   strip.clear();
   for (int i = startLED; i < endLED; i++) {
@@ -31,7 +49,9 @@ void LEDController::lightUp(uint16_t startLED, uint16_t endLED, uint8_t grb[]) {
   strip.show();
 }
 
+// Update the state of all shooting stars, particle shots, and twinkle effects
 void LEDController::update() {
+  // Update shooting stars
   for (auto &star : shootingStars) {
     if (!star.isAnimating) continue;
     fadeLEDsBehind(star);
@@ -52,17 +72,46 @@ void LEDController::update() {
                                      [](const ShootingStar &star) { return !star.isAnimating; }),
                       shootingStars.end());
 
+  // Update particle shots
+  for (auto &shot : particleShots) {
+    if (!shot.isAnimating) continue;
+
+    unsigned long currentTime = millis();
+    if (currentTime - shot.lastUpdate >= shot.updateInterval) {
+      shot.lastUpdate = currentTime;
+      strip.setPixelColor(shot.currentLED, 0);  // Clear the previous LED
+      shot.currentLED += shot.direction;
+      if ((shot.direction == 1 && shot.currentLED > shot.endLED) || 
+          (shot.direction == -1 && shot.currentLED < shot.endLED)) {
+        shot.isAnimating = false;  // End the animation if out of bounds
+      } else {
+        strip.setPixelColor(shot.currentLED, shot.color);
+      }
+      strip.show();
+    }
+  }
+
+  // Remove finished particle shots from the list
+  particleShots.erase(std::remove_if(particleShots.begin(), particleShots.end(),
+                                     [](const ParticleShot &shot) { return !shot.isAnimating; }),
+                      particleShots.end());
+
   // Update the twinkle effect
   updateTwinkle();
 }
 
+// Check if any LED is animating
 bool LEDController::isLEDAnimating() {
   for (const auto &star : shootingStars) {
     if (star.isAnimating) return true;
   }
+  for (const auto &shot : particleShots) {
+    if (shot.isAnimating) return true;
+  }
   return false;
 }
 
+// Fade LEDs behind a shooting star
 void LEDController::fadeLEDsBehind(ShootingStar &star) {
   bool fadeNeeded = false;
   for (int i = star.startLED; i <= star.endLED; i++) {
@@ -82,6 +131,7 @@ void LEDController::fadeLEDsBehind(ShootingStar &star) {
     strip.show();
 }
 
+// Check if all LEDs have faded for a given shooting star
 bool LEDController::allLEDsFaded(ShootingStar &star) {
   for (int i = star.startLED; i <= star.endLED; i++) {
     if (strip.getPixelColor(i) != 0)
@@ -90,12 +140,14 @@ bool LEDController::allLEDsFaded(ShootingStar &star) {
   return true;
 }
 
+// Set the fade steps for all shooting stars
 void LEDController::setFadeSteps(uint8_t fadeSteps) {
   for (auto &star : shootingStars) {
     star.fadeSteps = fadeSteps;
   }
 }
 
+// Start the twinkle effect with specified parameters
 void LEDController::startTwinkle(uint8_t maxBrightness, uint16_t updateInterval, uint8_t fadeAmount) {
   this->twinkleMaxBrightness = maxBrightness;
   this->twinkleUpdateInterval = updateInterval;
@@ -103,10 +155,12 @@ void LEDController::startTwinkle(uint8_t maxBrightness, uint16_t updateInterval,
   initializeTwinkle();
 }
 
+// Initialize the twinkle effect
 void LEDController::initializeTwinkle() {
   randomSeed(analogRead(0));  // Initialize random number generator
 }
 
+// Update the twinkle effect
 void LEDController::updateTwinkle() {
   unsigned long currentTime = millis();
   if (currentTime - lastTwinkleUpdate > twinkleUpdateInterval) {
@@ -146,10 +200,12 @@ void LEDController::updateTwinkle() {
   }
 }
 
+// Set the chance of twinkle effect occurring
 void LEDController::setTwinkleChance(uint16_t chance) {
   this->twinkleChance = chance;
 }
 
+// Check if an LED index is within the range of an active shooting star
 bool LEDController::isWithinShootingStarRange(uint16_t ledIndex) {
   for (const auto &star : shootingStars) {
     if (ledIndex >= star.startLED && ledIndex <= star.endLED && star.isAnimating) {
@@ -159,6 +215,7 @@ bool LEDController::isWithinShootingStarRange(uint16_t ledIndex) {
   return false;
 }
 
+// Adjust the brightness of a given color
 uint32_t LEDController::adjustBrightness(uint32_t color, uint8_t brightness) {
   uint8_t r = (color >> 16) & 0xFF;
   uint8_t g = (color >> 8) & 0xFF;
